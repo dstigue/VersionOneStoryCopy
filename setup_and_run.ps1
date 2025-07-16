@@ -35,12 +35,25 @@ if ($PSBoundParameters.ContainsKey('RelaunchedForInstall')) {
         try {
             $scriptPath = $MyInvocation.MyCommand.Path
             # Arguments for the NEXT instance: run the script normally (no -RelaunchedForInstall)
-            $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"`"$($scriptPath)`"`"" 
-            Write-Host "Attempting to run: powershell.exe $arguments" -ForegroundColor Gray # Debugging line
+            $arguments = @(
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", $scriptPath
+            )
+            
+            Write-Host "Starting new process to continue script execution..." -ForegroundColor Gray
             # Start in the same elevated context, but as a new process so PATH updates apply
-            Start-Process powershell.exe -ArgumentList $arguments # No -Verb RunAs needed, already elevated
-            Write-Host "Exiting current installation instance." -ForegroundColor Yellow
-            Exit 0 # Exit this installation-focused instance cleanly
+            $newProcess = Start-Process powershell.exe -ArgumentList $arguments -PassThru -ErrorAction Stop
+            
+            # Brief verification that the process started
+            Start-Sleep -Milliseconds 300
+            if ($newProcess -and !$newProcess.HasExited) {
+                Write-Host "New process started successfully. Exiting installation instance." -ForegroundColor Green
+                Exit 0
+            } else {
+                Write-Error "New process failed to start properly. Please close this terminal and run the script again manually."
+                Exit 1
+            }
         } catch {
              Write-Error "Failed to automatically restart the script after installation. Please close this terminal and run the script again manually. Error: $($_.Exception.Message)"
              Exit 1
@@ -84,16 +97,43 @@ if (-not $nodeExists) {
     if (-NOT $IsElevated) {
         # Not elevated, attempt to relaunch.
         Write-Warning "Node.js installation requires elevated privileges. Attempting to relaunch with elevation..."
+        Write-Host "Please click 'Yes' on the UAC prompt that appears..." -ForegroundColor Yellow
+        
         try {
             $scriptPath = $MyInvocation.MyCommand.Path
-            # Ensure the path is quoted correctly, especially if it contains spaces
-            $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"`"$($scriptPath)`"`" -RelaunchedForInstall" # Adjusted quoting for safety
-            Write-Host "Attempting to run: powershell.exe $arguments" -ForegroundColor Gray # Debugging line
-            Start-Process powershell.exe -Verb RunAs -ArgumentList $arguments
-            Write-Host "Exiting original non-elevated process to allow elevated instance to run." -ForegroundColor Yellow
-            Exit 0 # Exit the current non-elevated instance cleanly
+            # Simplified argument construction to avoid quoting issues
+            $arguments = @(
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", $scriptPath,
+                "-RelaunchedForInstall"
+            )
+            
+            Write-Host "Attempting elevation..." -ForegroundColor Gray
+            
+            # Start the elevated process and capture the process object
+            $elevatedProcess = Start-Process powershell.exe -Verb RunAs -ArgumentList $arguments -PassThru -ErrorAction Stop
+            
+            # Wait a moment to see if the process actually started
+            Start-Sleep -Milliseconds 500
+            
+            # Check if the process is still running (indicates UAC was accepted)
+            if ($elevatedProcess -and !$elevatedProcess.HasExited) {
+                Write-Host "Elevated process started successfully. Exiting original process..." -ForegroundColor Green
+                Exit 0
+            } else {
+                Write-Error "Elevated process failed to start or exited immediately. This usually means UAC was cancelled or denied."
+                Write-Host "Please try running the script again and click 'Yes' on the UAC prompt, or run PowerShell as Administrator manually." -ForegroundColor Yellow
+                Exit 1
+            }
+            
+        } catch [System.ComponentModel.Win32Exception] {
+            # This specific exception occurs when UAC is cancelled
+            Write-Error "UAC prompt was cancelled or elevation was denied. Please run the script again and accept the elevation, or run PowerShell as Administrator manually."
+            Exit 1
         } catch {
-            Write-Error "Failed to start relaunch process with elevated privileges for installation. Please run the script manually using 'Run as administrator'. Error: $($_.Exception.Message)"
+            Write-Error "Failed to start elevated process. Please run the script manually using 'Run as administrator'. Error: $($_.Exception.Message)"
+            Write-Host "Error Type: $($_.Exception.GetType().Name)" -ForegroundColor Red
             Exit 1
         }
     } else {
