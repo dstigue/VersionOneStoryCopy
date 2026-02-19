@@ -26,6 +26,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Password visibility toggle buttons
     const togglePasswordVisibility = document.getElementById('toggle-password-visibility');
     const toggleTokenVisibility = document.getElementById('toggle-token-visibility');
+    // Proxy credential management elements
+    const proxyCredStatus = document.getElementById('proxy-cred-status');
+    const proxyCredForm = document.getElementById('proxy-cred-form');
+    const proxyCredActions = document.getElementById('proxy-cred-actions');
+    const proxyServerInput = document.getElementById('proxy-server');
+    const proxyDomainInput = document.getElementById('proxy-domain');
+    const proxyUsernameInput = document.getElementById('proxy-username');
+    const proxyPasswordInput = document.getElementById('proxy-password');
+    const toggleProxyPasswordVisibility = document.getElementById('toggle-proxy-password-visibility');
+    const saveProxyCredsBtn = document.getElementById('save-proxy-creds');
+    const cancelProxyCredsBtn = document.getElementById('cancel-proxy-creds');
+    const editProxyCredsBtn = document.getElementById('edit-proxy-creds');
+    const clearProxyCredsBtn = document.getElementById('clear-proxy-creds');
+    const proxyCredSaveStatus = document.getElementById('proxy-cred-save-status');
     // Story Owner Filter element
     const storyOwnerFilterSelect = document.getElementById('story-owner-filter');
 
@@ -155,8 +169,18 @@ document.addEventListener('DOMContentLoaded', () => {
             toggleTokenVisibility.addEventListener('click', () => {
                 const type = v1TokenInput.getAttribute('type') === 'password' ? 'text' : 'password';
                 v1TokenInput.setAttribute('type', type);
-                toggleTokenVisibility.innerHTML = type === 'password' 
-                    ? '<i class="bi bi-eye"></i>' 
+                toggleTokenVisibility.innerHTML = type === 'password'
+                    ? '<i class="bi bi-eye"></i>'
+                    : '<i class="bi bi-eye-slash"></i>';
+            });
+        }
+
+        if (toggleProxyPasswordVisibility && proxyPasswordInput) {
+            toggleProxyPasswordVisibility.addEventListener('click', () => {
+                const type = proxyPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                proxyPasswordInput.setAttribute('type', type);
+                toggleProxyPasswordVisibility.innerHTML = type === 'password'
+                    ? '<i class="bi bi-eye"></i>'
                     : '<i class="bi bi-eye-slash"></i>';
             });
         }
@@ -1763,12 +1787,151 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- End Event Listener Setup ---
 
+    // --- Proxy Credential Management (Windows Credential Manager) ---
+
+    async function loadProxyCredentialStatus() {
+        if (!proxyCredStatus) return;
+        proxyCredStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Checking stored credentials&hellip;';
+        proxyCredStatus.className = 'alert alert-secondary py-2 mb-3';
+
+        try {
+            const resp = await fetch('/api/proxy-credentials');
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                proxyCredStatus.className = 'alert alert-warning py-2 mb-3';
+                proxyCredStatus.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>${err.error || 'Could not reach credential service.'}`;
+                return;
+            }
+
+            const data = await resp.json();
+            if (data.configured) {
+                proxyCredStatus.className = 'alert alert-success py-2 mb-3';
+                proxyCredStatus.innerHTML =
+                    `<i class="bi bi-shield-check me-2"></i>Credentials stored in Windows Credential Manager` +
+                    ` &mdash; <strong>${data.domain ? data.domain + '\\' : ''}${data.username}</strong>` +
+                    ` @ <strong>${data.server}</strong>`;
+                if (clearProxyCredsBtn) clearProxyCredsBtn.style.display = '';
+            } else {
+                proxyCredStatus.className = 'alert alert-info py-2 mb-3';
+                proxyCredStatus.innerHTML = '<i class="bi bi-info-circle me-2"></i>No proxy credentials stored. Click "Set / Update Credentials" to configure.';
+                if (clearProxyCredsBtn) clearProxyCredsBtn.style.display = 'none';
+            }
+        } catch (e) {
+            proxyCredStatus.className = 'alert alert-warning py-2 mb-3';
+            proxyCredStatus.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Could not contact the local server to check credentials.';
+        }
+    }
+
+    function showProxyCredForm(prefill) {
+        if (proxyCredForm) proxyCredForm.style.display = '';
+        if (proxyCredActions) proxyCredActions.style.display = 'none';
+        if (proxyCredSaveStatus) proxyCredSaveStatus.innerHTML = '';
+        // Pre-fill non-sensitive fields if available
+        if (prefill) {
+            if (proxyServerInput && prefill.server) proxyServerInput.value = prefill.server;
+            if (proxyDomainInput && prefill.domain) proxyDomainInput.value = prefill.domain;
+            if (proxyUsernameInput && prefill.username) proxyUsernameInput.value = prefill.username;
+        }
+    }
+
+    function hideProxyCredForm() {
+        if (proxyCredForm) proxyCredForm.style.display = 'none';
+        if (proxyCredActions) proxyCredActions.style.display = '';
+        if (proxyPasswordInput) proxyPasswordInput.value = '';
+    }
+
+    function setupProxyCredentials() {
+        if (!editProxyCredsBtn) return; // UI not present
+
+        editProxyCredsBtn.addEventListener('click', async () => {
+            // Pre-fill from currently stored (non-sensitive) values
+            try {
+                const resp = await fetch('/api/proxy-credentials');
+                const data = resp.ok ? await resp.json() : {};
+                showProxyCredForm(data.configured ? data : null);
+            } catch (_) {
+                showProxyCredForm(null);
+            }
+        });
+
+        if (cancelProxyCredsBtn) {
+            cancelProxyCredsBtn.addEventListener('click', () => {
+                hideProxyCredForm();
+            });
+        }
+
+        if (saveProxyCredsBtn) {
+            saveProxyCredsBtn.addEventListener('click', async () => {
+                const server = proxyServerInput ? proxyServerInput.value.trim() : '';
+                const domain = proxyDomainInput ? proxyDomainInput.value.trim() : '';
+                const username = proxyUsernameInput ? proxyUsernameInput.value.trim() : '';
+                const password = proxyPasswordInput ? proxyPasswordInput.value : '';
+
+                if (!server || !username || !password) {
+                    if (proxyCredSaveStatus) {
+                        proxyCredSaveStatus.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Server, username and password are required.</span>';
+                    }
+                    return;
+                }
+
+                saveProxyCredsBtn.disabled = true;
+                saveProxyCredsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving&hellip;';
+
+                try {
+                    const resp = await fetch('/api/proxy-credentials', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ server, domain, username, password })
+                    });
+                    const result = await resp.json();
+
+                    if (resp.ok && result.ok) {
+                        hideProxyCredForm();
+                        await loadProxyCredentialStatus();
+                    } else {
+                        if (proxyCredSaveStatus) {
+                            proxyCredSaveStatus.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>${result.error || 'Failed to save.'}</span>`;
+                        }
+                    }
+                } catch (e) {
+                    if (proxyCredSaveStatus) {
+                        proxyCredSaveStatus.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Network error: ${e.message}</span>`;
+                    }
+                } finally {
+                    saveProxyCredsBtn.disabled = false;
+                    saveProxyCredsBtn.innerHTML = '<i class="bi bi-save me-1"></i>Save to Credential Manager';
+                }
+            });
+        }
+
+        if (clearProxyCredsBtn) {
+            clearProxyCredsBtn.addEventListener('click', async () => {
+                if (!confirm('Remove stored proxy credentials from Windows Credential Manager?')) return;
+
+                clearProxyCredsBtn.disabled = true;
+                try {
+                    const resp = await fetch('/api/proxy-credentials', { method: 'DELETE' });
+                    await resp.json();
+                    await loadProxyCredentialStatus();
+                } catch (e) {
+                    console.error('Failed to clear credentials:', e);
+                } finally {
+                    clearProxyCredsBtn.disabled = false;
+                }
+            });
+        }
+
+        // Load current status on startup
+        loadProxyCredentialStatus();
+    }
+
     // --- Initial Load and Setup ---
     function initializeApp() {
         // Initialize UI components
-        initChoices(); 
+        initChoices();
         setupEventListeners(); // Centralized listener setup
-        loadSettings(); 
+        setupProxyCredentials(); // Set up Windows Credential Manager UI
+        loadSettings();
         updateSelectedCount(); // Initialize count
     }
 
