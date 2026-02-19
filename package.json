@@ -5,7 +5,23 @@
   "main": "server.js",
   "scripts": {
     "start": "node --openssl-legacy-provider server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "pkg server.js --targets node18-win-x64 --output dist/v1-story-copier.exe --public-packages \"*\" && node build-copy-native.js"
+  },
+  "pkg": {
+    "assets": [
+      "index.html",
+      "style.css",
+      "script.js",
+      "node_modules/keytar/build/Release/keytar.node"
+    ],
+    "scripts": [
+      "server.js"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
   },
   "author": "",
   "license": "ISC",
@@ -14,9 +30,14 @@
     "express": "^4.17.1",
     "http-proxy-agent": "^7.0.2",
     "https-proxy-agent": "^7.0.6",
+    "keytar": "^7.9.0",
     "node-fetch": "^2.6.1",
     "node-http-ntlm": "^1.7.5",
+    "open": "^8.4.2",
     "proxy-agent": "^6.5.0"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^5.13.0"
   },
   "overrides": {
     "underscore": "^1.13.6"

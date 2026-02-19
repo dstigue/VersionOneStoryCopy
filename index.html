@@ -309,10 +309,80 @@
                 <div id="ntlm-input-section" class="auth-section mb-4">
                     <div class="d-flex align-items-center mb-2">
                         <i class="bi bi-shield-lock me-2 text-primary"></i>
-                        <strong>NTLM Authentication</strong>
+                        <strong>NTLM Proxy Authentication</strong>
                     </div>
-                    <p class="mb-2">NTLM authentication uses the HTTPS_PROXY environment variable configured on the server.</p>
-                    <p class="mb-0 text-muted">No additional credentials needed here.</p>
+                    <p class="mb-3 text-muted">
+                        Proxy credentials are stored securely in the
+                        <strong>Windows Credential Manager</strong> and never exposed in environment variables.
+                    </p>
+
+                    <!-- Status row -->
+                    <div id="proxy-cred-status" class="alert alert-secondary py-2 mb-3" role="alert">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Checking stored credentials&hellip;
+                    </div>
+
+                    <!-- Credential form (collapsed by default; shown when editing) -->
+                    <div id="proxy-cred-form" style="display:none;">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="proxy-server" class="form-label">Proxy Server</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-hdd-network"></i></span>
+                                    <input type="text" id="proxy-server" class="form-control"
+                                           placeholder="proxy.example.com:8080">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="proxy-domain" class="form-label">Domain <span class="text-muted fw-normal">(optional)</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-building"></i></span>
+                                    <input type="text" id="proxy-domain" class="form-control"
+                                           placeholder="MYDOMAIN">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="proxy-username" class="form-label">Username</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                                    <input type="text" id="proxy-username" class="form-control"
+                                           placeholder="username">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="proxy-password" class="form-label">Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                                    <input type="password" id="proxy-password" class="form-control"
+                                           placeholder="password">
+                                    <button class="btn btn-outline-secondary" type="button"
+                                            id="toggle-proxy-password-visibility"
+                                            title="Show/hide password">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3 d-flex gap-2">
+                            <button id="save-proxy-creds" class="btn btn-primary btn-sm">
+                                <i class="bi bi-save me-1"></i>Save to Credential Manager
+                            </button>
+                            <button id="cancel-proxy-creds" class="btn btn-outline-secondary btn-sm">
+                                Cancel
+                            </button>
+                        </div>
+                        <div id="proxy-cred-save-status" class="mt-2"></div>
+                    </div>
+
+                    <!-- Action buttons (shown when not editing) -->
+                    <div id="proxy-cred-actions" class="d-flex gap-2">
+                        <button id="edit-proxy-creds" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-pencil me-1"></i>Set / Update Credentials
+                        </button>
+                        <button id="clear-proxy-creds" class="btn btn-outline-danger btn-sm" style="display:none;">
+                            <i class="bi bi-trash me-1"></i>Clear Credentials
+                        </button>
+                    </div>
                 </div>
 
                 <div id="token-input-section" class="auth-section mb-4" style="display: none;">
